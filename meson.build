@@ -2879,6 +2879,8 @@ trace_ss = ss.source_set()
 user_ss = ss.source_set()
 util_ss = ss.source_set()
 
+robonaut_ss = ss.source_set()
+
 # accel modules
 qtest_module_ss = ss.source_set()
 tcg_module_ss = ss.source_set()
@@ -3465,6 +3467,12 @@ foreach target : target_dirs
   arch_srcs += target_specific.sources()
   arch_deps += target_specific.dependencies()
 
+  if target_name == 'robonaut' 
+    robonaut = robonaut_ss.apply(config_target, strict: false)
+    arch_srcs += robonaut.sources()
+    arch_deps += robonaut.dependencies()
+  endif
+  
   lib = static_library('qemu-' + target,
                  sources: arch_srcs + genh,
                  dependencies: arch_deps,

@@ -85,3 +85,7 @@ config XLNX_ZYNQMP
     select PTIMER
     select XLNX_BBRAM
     select XLNX_EFUSE_ZYNQMP
+
+source robonaut/Kconfig
+
+    
