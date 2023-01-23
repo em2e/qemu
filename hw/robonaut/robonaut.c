@@ -1,5 +1,5 @@
 /*
- * Nucleo f446re Machine Model
+ * Robonaut machine model
  *
  * Copyright (c) 2023 Zoltan Mihaly <zoltanmihaly@gmail.com>
  *
@@ -29,7 +29,7 @@
 #include "hw/qdev-clock.h"
 #include "qemu/error-report.h"
 #include "hw/arm/boot.h"
-#include <hw/robonaut/stm32f446_soc.h>
+#include <hw/robonaut/nucleo_f446re.h>
 
 /* Main SYSCLK frequency in Hz (180MHz) */
 #define SYSCLK_FRQ 180000000ULL

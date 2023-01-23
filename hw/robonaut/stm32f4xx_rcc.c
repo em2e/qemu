@@ -26,8 +26,8 @@
 #include "qemu/log.h"
 #include "trace.h"
 #include "migration/vmstate.h"
-#include "hw/robonaut/stm32f4xx_rcc.h"
 #include "qemu/timer.h"
+#include <hw/robonaut/stm32f4xx_rcc.h>
 
 static void stm32f4xx_rcc_reset(DeviceState *dev)
 {

@@ -26,7 +26,7 @@
 #include "qemu/log.h"
 #include "trace.h"
 #include "migration/vmstate.h"
-#include "hw/robonaut/stm32f4xx_flash.h"
+#include <hw/robonaut/stm32f4xx_flash.h>
 
 static void stm32f4xx_flash_reset(DeviceState *dev)
 {

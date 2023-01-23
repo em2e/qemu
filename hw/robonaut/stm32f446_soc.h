@@ -34,8 +34,8 @@
 #include "hw/ssi/stm32f2xx_spi.h"
 #include "hw/arm/armv7m.h"
 #include "qom/object.h"
-#include "stm32f4xx_flash.h"
-#include "stm32f4xx_rcc.h"
+#include <hw/robonaut/stm32f4xx_flash.h>
+#include <hw/robonaut/stm32f4xx_rcc.h>
 
 #define TYPE_STM32F446RE_SOC "stm32f446re-soc"
 #define TYPE_STM32F446_SOC "stm32f446-soc"

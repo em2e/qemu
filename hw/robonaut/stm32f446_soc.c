@@ -29,7 +29,7 @@
 #include "hw/qdev-clock.h"
 #include "hw/misc/unimp.h"
 
-#include "hw/robonaut/stm32f446_soc.h"
+#include <hw/robonaut/stm32f446_soc.h>
 
 
 #define SYSCFG_ADD                     0x40013800

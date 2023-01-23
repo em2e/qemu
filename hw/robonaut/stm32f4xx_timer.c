@@ -28,7 +28,7 @@
 #include "migration/vmstate.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "hw/robonaut/stm32f4xx_timer.h"
+#include <hw/robonaut/stm32f4xx_timer.h>
 
 
 #ifndef STM_TIMER_ERR_DEBUG
