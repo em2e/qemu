@@ -29,35 +29,43 @@
 #include "hw/qdev-clock.h"
 #include "qemu/error-report.h"
 #include "hw/arm/boot.h"
-#include <hw/robonaut/nucleo_f446re.h>
+#include <hw/robonaut/stm32f446_soc.h>
+
+#include <hw/robonaut/simulatorConnection.h>
 
 /* Main SYSCLK frequency in Hz (180MHz) */
 #define SYSCLK_FRQ 180000000ULL
 
-static void nucleo_f446re_init(MachineState *machine)
+static SimulatorConnectionState simulatorConnection;
+
+static void robonaut_init (MachineState *machine)
 {
-    DeviceState *dev;
-    Clock *sysclk;
+  DeviceState *dev;
+  Clock *sysclk;
 
-    /* This clock doesn't need migration because it is fixed-frequency */
-    sysclk = clock_new(OBJECT(machine), "SYSCLK");
-    clock_set_hz(sysclk, SYSCLK_FRQ);
+  if (!simulatorConnection_init (&simulatorConnection))
+  {
+      error_setg(&error_fatal, "Socket connection failed");
+      return;
+  }
 
-    dev = qdev_new(TYPE_STM32F446RE_SOC);
-    qdev_prop_set_string(dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m4"));
-    qdev_connect_clock_in(dev, "sysclk", sysclk);
-    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+  /* This clock doesn't need migration because it is fixed-frequency */
+  sysclk = clock_new (OBJECT(machine), "SYSCLK");
+  clock_set_hz (sysclk, SYSCLK_FRQ);
 
-    armv7m_load_kernel(ARM_CPU(first_cpu),
-                       machine->kernel_filename,
-                       0,
-					   FLASH_SIZE_E);
+  dev = qdev_new (TYPE_STM32F446RE_SOC);
+  qdev_prop_set_string (dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m4"));
+  qdev_connect_clock_in (dev, "sysclk", sysclk);
+  sysbus_realize_and_unref (SYS_BUS_DEVICE (dev), &error_fatal);
+
+  armv7m_load_kernel (ARM_CPU (first_cpu), machine->kernel_filename, 0,
+  FLASH_SIZE_E);
 }
 
-static void nucleo_f446re_machine_init(MachineClass *mc)
+static void robonaut_machine_init (MachineClass *mc)
 {
-    mc->desc = "Nucleo f446re Machine (Cortex-M4)";
-    mc->init = nucleo_f446re_init;
+  mc->desc = "Robonaut emulated hardware";
+  mc->init = robonaut_init;
 }
 
-DEFINE_MACHINE("nucleo_f446re", nucleo_f446re_machine_init)
+DEFINE_MACHINE("robonaut", robonaut_machine_init)
