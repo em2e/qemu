@@ -35,6 +35,10 @@
 
 /* Main SYSCLK frequency in Hz (180MHz) */
 #define SYSCLK_FRQ 180000000ULL
+//HCLK (AHB) 168Mhz,  180Mhz in overdrive mode
+//PCLK1 (APB1) 42, 45
+//PCLK2 (APB2) 84, 90
+//#define SYSCLK_INIT_FRQ 16000000ULL //init fq of HSI: 16Mhz
 
 static SimulatorConnectionState simulatorConnection;
 
@@ -49,17 +53,15 @@ static void robonaut_init (MachineState *machine)
       return;
   }
 
-  /* This clock doesn't need migration because it is fixed-frequency */
   sysclk = clock_new (OBJECT(machine), "SYSCLK");
-  clock_set_hz (sysclk, SYSCLK_FRQ);
+  clock_set_hz (sysclk, SYSCLK_FRQ); //initially the system clock is the internal 16Mhz clock, but our firmware will switch to the maximum 180Mhz using HSE source
 
   dev = qdev_new (TYPE_STM32F446RE_SOC);
   qdev_prop_set_string (dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m4"));
   qdev_connect_clock_in (dev, "sysclk", sysclk);
   sysbus_realize_and_unref (SYS_BUS_DEVICE (dev), &error_fatal);
 
-  armv7m_load_kernel (ARM_CPU (first_cpu), machine->kernel_filename, 0,
-  FLASH_SIZE_E);
+  armv7m_load_kernel (ARM_CPU (first_cpu), machine->kernel_filename, 0, FLASH_SIZE_E);
 }
 
 static void robonaut_machine_init (MachineClass *mc)

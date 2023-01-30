@@ -26,7 +26,6 @@
 #define HW_ARM_STM32F446_SOC_H
 
 #include "hw/misc/stm32f4xx_syscfg.h"
-#include "hw/timer/stm32f2xx_timer.h"
 #include "hw/char/stm32f2xx_usart.h"
 #include "hw/adc/stm32f2xx_adc.h"
 #include "hw/misc/stm32f4xx_exti.h"
@@ -34,8 +33,10 @@
 #include "hw/ssi/stm32f2xx_spi.h"
 #include "hw/arm/armv7m.h"
 #include "qom/object.h"
-#include <hw/robonaut/stm32f4xx_flash.h>
-#include <hw/robonaut/stm32f4xx_rcc.h>
+#include <hw/robonaut/stm32f446_flash.h>
+#include <hw/robonaut/stm32f446_rcc.h>
+#include <hw/robonaut/stm32f446_timer.h>
+#include <hw/robonaut/stm32f446_pwr.h>
 
 #define TYPE_STM32F446RE_SOC "stm32f446re-soc"
 #define TYPE_STM32F446_SOC "stm32f446-soc"
@@ -75,12 +76,13 @@ struct STM32F446State {
     STM32F4xxSyscfgState syscfg;
     STM32F4xxExtiState exti;
     STM32F2XXUsartState usart[STM_NUM_USARTS];
-    STM32F2XXTimerState timer[STM_NUM_TIMERS];
+    STM32F446TimerState timer[STM_NUM_TIMERS];
     qemu_or_irq adc_irqs;
     STM32F2XXADCState adc[STM_NUM_ADCS];
     STM32F2XXSPIState spi[STM_NUM_SPIS];
-    STM32F4XXFlashState flashInterface;
-    STM32F4XXRccState rcc;
+    STM32F446FlashState flashInterface;
+    STM32F446RccState rcc;
+    STM32F446RccState pwr;
 
     MemoryRegion sram;
     MemoryRegion flash;
@@ -88,6 +90,11 @@ struct STM32F446State {
 
     Clock *sysclk;
     Clock *refclk;
+
+    Clock *apb1clk;
+    Clock *apb2clk;
+    Clock *apb1timerclk;
+    Clock *apb2timerclk;
 };
 
 #endif

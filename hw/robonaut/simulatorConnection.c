@@ -29,11 +29,7 @@ static void *simulatorConnection_outThread (void *opaque)
     qemu_cond_wait(&sc->outThreadCond, &sc->outThreadMutex);//no timeout
     if (!sc->stopping) {
       //send data
-      if (sockConnectionSend (&sc->sockConnection, &sc->outMsg, sizeof(SimulatoConnectionOutputMessage) ))
-      {
-        //TODO process input message
-      }
-      else
+      if (!sockConnectionSend (&sc->sockConnection, &sc->outMsg, sizeof(SimulatoConnectionOutputMessage) ))
       {
         //TODO error happened, close emulator?
       }

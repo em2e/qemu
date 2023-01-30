@@ -11,12 +11,26 @@
 
 typedef struct
 {
-  uint32_t x;
+  uint8_t state;
+  bool morelines;
+  bool oneline;
+  double pFront; //in mm -100,75 -> 100,75
+  double pRead;
+  double delta; //orientation of the line in [rad] atan((*p_rear-*p_front)/D
+
+  double distanceSensor;
+
+  uint64_t encoder; //calculated from speed
+
 } SimulatoConnectionInputMessage;
 
 typedef struct
 {
-  uint32_t x;
+  uint64_t virtualTime;
+  double motorPwm; //motor power ration -1 - 1 (expected values -0.3 - 0.3)
+  uint32_t fwdSteeringWheelPwm;
+  uint32_t revSteeringWheelPwm;
+  uint32_t distanceRotationPwm;
 } SimulatoConnectionOutputMessage;
 
 typedef struct

@@ -1,5 +1,5 @@
 /*
- * STM32F4XX Timer
+ * STM32F446 Timer
  *
  * Copyright (c) 2014 Alistair Francis <alistair@alistair23.me>
  *
@@ -22,11 +22,13 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_STM32F4XX_TIMER_H
-#define HW_STM32F4XX_TIMER_H
+#ifndef HW_STM32F446_TIMER_H
+#define HW_STM32F446_TIMER_H
 
 #include "hw/sysbus.h"
+#include "hw/clock.h"
 #include "qemu/timer.h"
+#include "hw/qdev-clock.h"
 #include "qom/object.h"
 
 #define TIM_CR1      0x00
@@ -41,15 +43,21 @@
 #define TIM_CNT      0x24
 #define TIM_PSC      0x28
 #define TIM_ARR      0x2C
+#define TIM_RCR      0x30 //tim1 & 8
 #define TIM_CCR1     0x34
 #define TIM_CCR2     0x38
 #define TIM_CCR3     0x3C
 #define TIM_CCR4     0x40
+#define TIM_BDTR     0x44 //tim1 & 8
 #define TIM_DCR      0x48
 #define TIM_DMAR     0x4C
-#define TIM_OR       0x50
+#define TIM_OR       0x50 //GP timers
 
-#define TIM_CR1_CEN   1
+#define STM32F446_TIMER_TYPE_GENERALPURPOSE 1
+#define STM32F446_TIMER_TYPE_ADVANCED 2
+#define STM32F446_TIMER_TYPE_BASIC 3
+
+#define STM32F446_TIMER_CEN   1
 
 #define TIM_EGR_UG 1
 
@@ -61,23 +69,25 @@
 
 #define TIM_DIER_UIE  1
 
-#define TYPE_STM32F4XX_TIMER "stm32f2xx-timer"
-typedef struct STM32F4XXTimerState STM32F4XXTimerState;
-DECLARE_INSTANCE_CHECKER(STM32F4XXTimerState, STM32F4XXTIMER,
-                         TYPE_STM32F4XX_TIMER)
+#define TYPE_STM32F446_TIMER "stm32f446-timer"
+typedef struct STM32F446TimerState STM32F446TimerState;
+DECLARE_INSTANCE_CHECKER(STM32F446TimerState, STM32F446TIMER,
+                         TYPE_STM32F446_TIMER)
 
-struct STM32F4XXTimerState {
+struct STM32F446TimerState {
     /* <private> */
     SysBusDevice parent_obj;
 
     /* <public> */
     MemoryRegion iomem;
     QEMUTimer *timer;
+    Clock *clk;
     qemu_irq irq;
 
-    int64_t tick_offset;
-    uint64_t hit_time;
-    uint64_t freq_hz;
+    uint32_t timerId;
+    uint32_t timerType;
+    uint64_t ticks;
+    uint64_t startTimeNs;
 
     uint32_t tim_cr1;
     uint32_t tim_cr2;
@@ -88,15 +98,18 @@ struct STM32F4XXTimerState {
     uint32_t tim_ccmr1;
     uint32_t tim_ccmr2;
     uint32_t tim_ccer;
+    uint32_t tim_cnt;
     uint32_t tim_psc;
     uint32_t tim_arr;
+    uint32_t tim_rcr;
     uint32_t tim_ccr1;
     uint32_t tim_ccr2;
     uint32_t tim_ccr3;
     uint32_t tim_ccr4;
+    uint32_t tim_bdtr;
     uint32_t tim_dcr;
     uint32_t tim_dmar;
     uint32_t tim_or;
 };
 
-#endif /* HW_STM32F4XX_TIMER_H */
+#endif /* HW_STM32F446_TIMER_H */
