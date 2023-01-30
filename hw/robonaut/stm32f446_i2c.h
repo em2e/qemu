@@ -1,5 +1,5 @@
 /*
- * STM32F446 UTIL
+ * STM32F446 I2C
  *
  * Copyright (c) 2023 Zoltan Mihaly <zoltanmihaly@gmail.com>
  *
@@ -22,34 +22,30 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_STM32F446_UTIL_H
-#define HW_STM32F446_UTIL_H
+#ifndef HW_STM32F446_I2C_H
+#define HW_STM32F446_I2C_H
 
-#include <stdbool.h>
 #include "hw/sysbus.h"
-#include "hw/qdev-clock.h"
+#include "qom/object.h"
 
-typedef struct RegisterInfo {
-	uint64_t hwaddr;
-	const char * name;
-	uint32_t initValue;
-	size_t regOffs;
-} RegisterInfo;
+#define STM32F446_I2C_CR 0x00
+#define STM32F446_I2C_CSR 0x04
 
-typedef struct DeviceInfo {
-	const char * name;
-	RegisterInfo *regInfo;
-	int regCount;
-} DeviceInfo;
+#define TYPE_STM32F446_I2C "stm32f446-i2c"
+OBJECT_DECLARE_SIMPLE_TYPE(STM32F446I2cState, STM32F446_I2C)
 
-void stm32f445_util_reset(DeviceInfo deviceInfo, char *base);
-uint64_t stm32f445_util_read(DeviceInfo deviceInfo, char *base, hwaddr addr, unsigned int size);
-void stm32f446_util_unhandledRead(const char *deviceName, hwaddr addr, unsigned int size);
-void stm32f446_util_unhandledWrited(const char *deviceName, hwaddr addr, unsigned int size, uint64_t val64);
-bool stm32f446_util_regBitChange(uint32_t value, uint32_t *ch, const char *devName, const char *regName,const char *bitName, uint32_t bit_bb);
-void stm32f446_util_regUnhandled(uint32_t value, uint32_t *ch, const char *devName, const char *regName);
-void stm32f446_util_clockUpdateMulDiv(Clock *clk, uint32_t multiplier, uint32_t divider, bool propagate);
-uint32_t stm32f446_util_clockGetChildHz(Clock *clk);
+struct STM32F446State;
 
-#endif /* HW_STM32F446_UTIL_H */
+struct STM32F446I2cState {
+  /* <private> */
+  SysBusDevice parent_obj;
+
+  /* <public> */
+  MemoryRegion mmio;
+
+  uint32_t cr1;
+  uint32_t cr2;
+};
+
+#endif /* HW_STM32F446_I2C_H */
 

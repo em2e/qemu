@@ -32,8 +32,14 @@
 void stm32f446_util_unhandledRead(const char *deviceName, hwaddr addr,
                                      unsigned int size)
 {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: Bad offset 0x%"HWADDR_PRIx"\n", deviceName, addr);
+	qemu_log_mask(LOG_GUEST_ERROR, "%s: unhandled read (size %d, offset 0x%0*"HWADDR_PRIx")\n",
+			deviceName, size, 4, addr);
+}
+
+void stm32f446_util_unhandledWrited(const char *deviceName, hwaddr addr, unsigned int size, uint64_t val64)
+{
+	qemu_log_mask(LOG_GUEST_ERROR, "%s: unhandled write (size %d, offset 0x%0*" HWADDR_PRIx ", value 0x%0*" PRIx64 ")\n",
+			deviceName, size, 4, addr, size << 1, val64);
 }
 
 bool stm32f446_util_regBitChange(uint32_t value, uint32_t *ch, const char *devName, const char *regName,const char *bitName, uint32_t bit_bb)
@@ -88,7 +94,6 @@ static void clockPropagatePeriod(Clock *clk, bool callCallbacks)
     }
 }
 
-
 void stm32f446_util_clockUpdateMulDiv(Clock *clk, uint32_t multiplier, uint32_t divider, bool propagate)
 {
     assert(divider != 0);
@@ -105,4 +110,26 @@ void stm32f446_util_clockUpdateMulDiv(Clock *clk, uint32_t multiplier, uint32_t 
 uint32_t stm32f446_util_clockGetChildHz(Clock *clk)
 {
   return CLOCK_PERIOD_TO_HZ(clockGetChildPeriod(clk));
+}
+
+void stm32f445_util_reset(DeviceInfo deviceInfo, char *base)
+{
+	  for (int i = 0; i < deviceInfo.regCount; ++i)
+	  {
+		  RegisterInfo ri = deviceInfo.regInfo[i];
+		  *((uint32_t *) (base + ri.regOffs)) = ri.initValue;
+	  }
+}
+
+uint64_t stm32f445_util_read(DeviceInfo deviceInfo, char *base, hwaddr addr, unsigned int size)
+{
+	  for (int i = 0; i < deviceInfo.regCount; ++i)
+	  {
+		  RegisterInfo ri = deviceInfo.regInfo[i];
+		  if (ri.hwaddr == addr) {
+			  return *((uint32_t *) (base + ri.regOffs));
+		  }
+	  }
+	  stm32f446_util_unhandledRead(deviceInfo.name, addr, size);
+	  return 0;
 }
