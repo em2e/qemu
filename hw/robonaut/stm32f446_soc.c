@@ -23,6 +23,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "qapi/error.h"
 #include "exec/address-spaces.h"
 #include "sysemu/sysemu.h"
@@ -43,7 +44,7 @@ static const int usart_irq[] = { 37, 38, 39, 52, 53, 71, 82, 83 };
 static const int spi_irq[] = { 35, 36, 51, 0, 0, 0 };
 static const int exti_irq[] = { 6, 7, 8, 9, 10, 23, 23, 23, 23, 23, 40, 40, 40, 40, 40, 40 };
 
-static bool realizeTimer (Error **errp, DeviceState *armv7m, STM32F446TimerState *timer, const uint32_t timer_addr, const uint32_t timerType, const uint32_t id,
+static bool realizeTimer (Error **errp, DeviceState *armv7m, STM32F446TimerState *timer, const uint32_t timer_addr, const uint32_t timerType, const char *name,
     Clock *clk, int irqPosition);
 
 static bool realizeMmapSysBusDevice (Error **errp, DeviceState *dev, const uint32_t addr);
@@ -58,6 +59,13 @@ static void init (Object *obj)
   object_initialize_child(obj, "flashInterface", &s->flashInterface, TYPE_STM32F446_FLASH);
   object_initialize_child(obj, "rcc", &s->rcc, TYPE_STM32F446_RCC);
   object_initialize_child(obj, "pwr", &s->pwr, TYPE_STM32F446_PWR);
+
+  object_initialize_child(obj, "i2c_1", &s->i2c_1, TYPE_STM32F446_I2C);
+  qdev_prop_set_string(DEVICE(&s->i2c_1), "name", "I2C[1]");
+  object_initialize_child(obj, "i2c_2", &s->i2c_2, TYPE_STM32F446_I2C);
+  qdev_prop_set_string(DEVICE(&s->i2c_2), "name", "I2C[2]");
+  object_initialize_child(obj, "i2c_3", &s->i2c_3, TYPE_STM32F446_I2C);
+  qdev_prop_set_string(DEVICE(&s->i2c_3), "name", "I2C[3]");
 
   for (i = 0; i < STM_NUM_USARTS; i++)
   {
@@ -93,6 +101,7 @@ static void init (Object *obj)
 
 static void realizeFn (DeviceState *dev_soc, Error **errp)
 {
+  //qemu_set_log(qemu_loglevel | CPU_LOG_INT, errp);
 
   STM32F446State *s = STM32F446_SOC (dev_soc);
   MemoryRegion *system_memory = get_system_memory ();
@@ -162,6 +171,9 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
   memory_region_add_subregion (system_memory, SRAM_BASE_ADDRESS, &s->sram);
 
   armv7m = DEVICE (&s->armv7m);
+
+  qdev_prop_set_uint32 (armv7m, "num-irq", 96);
+
   qdev_prop_set_uint32 (armv7m, "num-irq", 96);
   qdev_prop_set_string (armv7m, "cpu-type", s->cpu_type);
   qdev_prop_set_bit (armv7m, "enable-bitband", true);
@@ -172,6 +184,8 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
   {
     return;
   }
+  s->armv7m.nvic.num_prio_bits = 4;
+
 
   /* System configuration controller */
   if (!realizeMmapSysBusDevice (errp, DEVICE (&s->syscfg), SYSCFG_ADD))
@@ -196,26 +210,26 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
   /* Timer 2 to 5 */
 
   /* advance timers*/
-  realizeTimer (errp, armv7m, &s->timer[0], 0x40010000, STM32F446_TIMER_TYPE_ADVANCED, 1, s->apb2timerclk, 25); //brk->24, trg->26, cc->27
-  realizeTimer (errp, armv7m, &s->timer[7], 0x40010400, STM32F446_TIMER_TYPE_ADVANCED, 8, s->apb2timerclk, 44); //brk->43, trg->45, cc->46
+  realizeTimer (errp, armv7m, &s->timer[0], 0x40010000, STM32F446_TIMER_TYPE_ADVANCED, "TIMER[1]", s->apb2timerclk, 25); //brk->24, trg->26, cc->27
+  realizeTimer (errp, armv7m, &s->timer[7], 0x40010400, STM32F446_TIMER_TYPE_ADVANCED, "TIMER[8]", s->apb2timerclk, 44); //brk->43, trg->45, cc->46
 
   /* general purpose */
-  realizeTimer (errp, armv7m, &s->timer[1], 0x40000000, STM32F446_TIMER_TYPE_GENERALPURPOSE, 2, s->apb1timerclk, 28);
-  realizeTimer (errp, armv7m, &s->timer[2], 0x40000400, STM32F446_TIMER_TYPE_GENERALPURPOSE, 3, s->apb1timerclk, 29);
-  realizeTimer (errp, armv7m, &s->timer[3], 0x40000800, STM32F446_TIMER_TYPE_GENERALPURPOSE, 4, s->apb1timerclk, 30);
-  realizeTimer (errp, armv7m, &s->timer[4], 0x40000c00, STM32F446_TIMER_TYPE_GENERALPURPOSE, 5, s->apb1timerclk, 50);
+  realizeTimer (errp, armv7m, &s->timer[1], 0x40000000, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[2]", s->apb1timerclk, 28);
+  realizeTimer (errp, armv7m, &s->timer[2], 0x40000400, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[3]", s->apb1timerclk, 29);
+  realizeTimer (errp, armv7m, &s->timer[3], 0x40000800, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[4]", s->apb1timerclk, 30);
+  realizeTimer (errp, armv7m, &s->timer[4], 0x40000c00, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[5]", s->apb1timerclk, 50);
 
   /* GP */
-  realizeTimer (errp, armv7m, &s->timer[8], 0x40014000, STM32F446_TIMER_TYPE_GENERALPURPOSE, 9, s->apb2timerclk, 24);
-  realizeTimer (errp, armv7m, &s->timer[9], 0x40014400, STM32F446_TIMER_TYPE_GENERALPURPOSE, 10, s->apb2timerclk, 25);
-  realizeTimer (errp, armv7m, &s->timer[10], 0x40014800, STM32F446_TIMER_TYPE_GENERALPURPOSE, 11, s->apb2timerclk, 26);
-  realizeTimer (errp, armv7m, &s->timer[11], 0x40001800, STM32F446_TIMER_TYPE_GENERALPURPOSE, 12, s->apb1timerclk, 43);
-  realizeTimer (errp, armv7m, &s->timer[12], 0x40001C00, STM32F446_TIMER_TYPE_GENERALPURPOSE, 13, s->apb1timerclk, 44);
-  realizeTimer (errp, armv7m, &s->timer[13], 0x40002000, STM32F446_TIMER_TYPE_GENERALPURPOSE, 14, s->apb1timerclk, 45);
+  realizeTimer (errp, armv7m, &s->timer[8], 0x40014000, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[9]", s->apb2timerclk, 24);
+  realizeTimer (errp, armv7m, &s->timer[9], 0x40014400, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[10]", s->apb2timerclk, 25);
+  realizeTimer (errp, armv7m, &s->timer[10], 0x40014800, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[11]", s->apb2timerclk, 26);
+  realizeTimer (errp, armv7m, &s->timer[11], 0x40001800, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[12]", s->apb1timerclk, 43);
+  realizeTimer (errp, armv7m, &s->timer[12], 0x40001C00, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[13]", s->apb1timerclk, 44);
+  realizeTimer (errp, armv7m, &s->timer[13], 0x40002000, STM32F446_TIMER_TYPE_GENERALPURPOSE, "TIMER[14]", s->apb1timerclk, 45);
 
   /* basic */
-  realizeTimer (errp, armv7m, &s->timer[5], 0x40001000, STM32F446_TIMER_TYPE_BASIC, 6, s->apb1timerclk, 54);
-  realizeTimer (errp, armv7m, &s->timer[6], 0x40001400, STM32F446_TIMER_TYPE_BASIC, 7, s->apb1timerclk, 55);
+  realizeTimer (errp, armv7m, &s->timer[5], 0x40001000, STM32F446_TIMER_TYPE_BASIC, "TIMER[6]", s->apb1timerclk, 54);
+  realizeTimer (errp, armv7m, &s->timer[6], 0x40001400, STM32F446_TIMER_TYPE_BASIC, "TIMER[7]", s->apb1timerclk, 55); //55!!!
 
   /* RTC & watchdog */
   create_unimplemented_device ("RTC and BKP", 0x40002800, 0x400);
@@ -289,12 +303,21 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
     return;
   }
 
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->i2c_1), 0x40005400))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->i2c_2), 0x40005800))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->i2c_3), 0x40005C00))
+  {
+    return;
+  }
   //create_unimplemented_device("I2S2",     0x40003800, 0x400);
   //create_unimplemented_device("I2S3",     0x40003C00, 0x400);
   create_unimplemented_device ("SPDIFRX", 0x40004000, 0x400);
-  create_unimplemented_device ("I2C1", 0x40005400, 0x400);
-  create_unimplemented_device ("I2C2", 0x40005800, 0x400);
-  create_unimplemented_device ("I2C3", 0x40005C00, 0x400);
 
   create_unimplemented_device ("CAN1", 0x40006400, 0x400);
   create_unimplemented_device ("CAN2", 0x40006800, 0x400);
@@ -332,12 +355,12 @@ static bool realizeMmapSysBusDevice (Error **errp, DeviceState *dev, const uint3
   return true;
 }
 
-static bool realizeTimer (Error **errp, DeviceState *armv7m, STM32F446TimerState *timer, const uint32_t timer_addr, const uint32_t timerType, const uint32_t id,
+static bool realizeTimer (Error **errp, DeviceState *armv7m, STM32F446TimerState *timer, const uint32_t timer_addr, const uint32_t timerType, const char *name,
     Clock *clk, int irqPosition)
 {
   qdev_connect_clock_in (DEVICE(timer), "clk", clk);
   SysBusDevice *busdev = SYS_BUS_DEVICE (timer);
-  qdev_prop_set_uint32 (DEVICE (timer), "timerId", id);
+  qdev_prop_set_string (DEVICE (timer), "name", name);
   qdev_prop_set_uint32 (DEVICE (timer), "timerType", timerType);
   if (!sysbus_realize (busdev, errp))
   {

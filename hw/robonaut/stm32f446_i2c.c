@@ -28,6 +28,7 @@
 #include "trace.h"
 #include "migration/vmstate.h"
 #include "qemu/timer.h"
+#include "hw/qdev-properties.h"
 #include <hw/robonaut/stm32f446_util.h>
 #include <hw/robonaut/stm32f446_i2c.h>
 //#include <hw/robonaut/stm32f446_soc.h>
@@ -37,36 +38,110 @@
 //	uint32_t initValue;
 //	uint32_t *reg;
 
+#define CR1_START (1u << 8)
+#define CR1_STOP (1u << 9)
+#define SR1_SB 1u
+#define SR1_ADDR 2u
+#define SR1_TXE (1u << 7)
+#define SR2_MSL 1u
+#define SR2_BUSY 2u
+
+
+static void cr1StartWriteHandler(void *device, uint32_t *ch, uint32_t *value)
+{
+  STM32F446I2cState *s = device;
+  if (*value & CR1_START) {
+  	s->sr1 &= ~(SR1_ADDR | SR1_TXE);
+  	s->sr1 |= SR1_SB; //Start condition generated
+  	s->sr2 |= (SR2_MSL | SR2_BUSY); //master mode & busy
+  	s->index = 0;
+  }
+}
+
+static void cr1StopWriteHandler(void *device, uint32_t *ch, uint32_t *value)
+{
+  STM32F446I2cState *s = device;
+  if (*value & CR1_STOP) {
+  	//TODO data sending ready, call external handler routine
+  	s->sr2 &= ~(SR2_MSL | SR2_BUSY); //master mode & busy
+  	s->sr1 &= ~(SR1_ADDR | SR1_TXE);
+
+  }
+}
+
+static void drWriteHandler(void *device, uint32_t *ch, uint32_t *value)
+{
+  STM32F446I2cState *s = device;
+  if (s->cr1 & CR1_START) {
+    s->sr1 &= ~SR1_SB; //Start condition cleared
+    s->sr1 |= (SR1_ADDR | SR1_TXE);
+    s->cr1 &= ~(CR1_START);
+    s->clientAddr = *value;
+  } else {
+  	if (s->index > arraySize(s->buffer)) {
+  		//overflow!!!!
+  	}	else {
+			s->index++;
+			s->buffer[s->index] = (uint8_t) *value;
+  	}
+  }
+  s->dr = *value;
+  *ch = 0;
+}
+
+static const RegisterBitInfo cr1BitInfo[] = {
+		{.name = "PE", .bb = 0, .mask = 1u, .log = true},
+		{.name = "SMBUS", .bb = 1, .mask = 1u, .log = true},
+		{.name = "SMBTYPE", .bb = 3, .mask = 1u, .log = true},
+		{.name = "ENARP", .bb = 4, .mask = 1u, .log = true},
+		{.name = "ENPEC", .bb = 5, .mask = 1u, .log = true},
+		{.name = "ENGC", .bb = 6, .mask = 1u, .log = true},
+		{.name = "NOSTRECH", .bb = 7, .mask = 1u, .log = true},
+		{.name = "START", .bb = 8, .mask = 1u, .log = true, .wrHandler = cr1StartWriteHandler},
+		{.name = "STOP", .bb = 9, .mask = 1u, .log = true, .wrHandler = cr1StopWriteHandler},
+		{.name = "ACK", .bb = 10, .mask = 1u, .log = true},
+		{.name = "POS", .bb = 11, .mask = 1u, .log = true},
+		{.name = "PEC", .bb = 12, .mask = 1u, .log = true},
+		{.name = "ALERT", .bb = 13, .mask = 1u, .log = true},
+		{.name = "SWRST", .bb = 15, .mask = 1u, .log = true},
+};
+
 static const RegisterInfo regInfo[] = {
-	{.name = "CR1", .hwaddr = 0x0, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, cr1)},
-	{.name = "CR2",	.hwaddr = 0x04, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, cr2)}
+	{.name = "CR1",   .hwaddr = 0x00, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, cr1), .bitInfo = cr1BitInfo, .bitInfoSize = arraySize(cr1BitInfo) },
+	{.name = "CR2",	  .hwaddr = 0x04, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, cr2), .log = true},
+	{.name = "OAR1",	.hwaddr = 0x08, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, oar1), .log = true},
+	{.name = "OAR2",	.hwaddr = 0x0c, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, oar2), .log = true},
+	{.name = "DR",    .hwaddr = 0x10, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, dr), .log = true, .wrHandler = drWriteHandler},
+	{.name = "SR1",   .hwaddr = 0x14, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr1), .log = true},
+	{.name = "SR2",   .hwaddr = 0x18, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr2), .log = true, .readOnly = true},
+	{.name = "CCR",   .hwaddr = 0x1c, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, ccr), .log = true},
+	{.name = "TRISE", .hwaddr = 0x20, .initValue = 0x2, .regOffs = offsetof(STM32F446I2cState, trise), .log = true},
+	{.name = "FLTR",  .hwaddr = 0x24, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, fltr), .log = true}
 };
 
 static const DeviceInfo deviceInfo = {
-	.name = "I2C",
-	.regCount = sizeof(regInfo)/sizeof(regInfo[0]),
+	.regInfoSize = arraySize(regInfo),
 	.regInfo = regInfo
 };
 
 static void stm32f446_i2c_reset(DeviceState *dev)
 {
-  stm32f445_util_reset(deviceInfo, (char *)dev);
+  STM32F446I2cState *s = STM32F446_I2C(dev);
+  stm32f445_util_reset(deviceInfo, (char *)s);
 }
 
 static uint64_t stm32f446_i2c_read(void *opaque, hwaddr addr,
                                      unsigned int size)
 {
-  return stm32f445_util_read(deviceInfo, (char *) opaque, addr, size);
+  STM32F446I2cState *s = opaque;
+  return stm32f445_util_regRead(deviceInfo, s->name, (char *) opaque, addr, size);
 }
 
 static void stm32f446_i2c_write(void *opaque, hwaddr addr,
                        uint64_t val64, unsigned int size)
 {
-
-	stm32f445_util_write(deviceInfo, (char *) opaque, addr, val64 size);
-
 	STM32F446I2cState *s = opaque;
-    uint32_t value = val64;
+  stm32f445_util_regWrite(deviceInfo, s->name, (char *) opaque, addr, val64, size);
 }
 
 static const MemoryRegionOps stm32f446_i2c_ops = {
@@ -78,20 +153,22 @@ static const MemoryRegionOps stm32f446_i2c_ops = {
 static void stm32f446_i2c_init(Object *obj)
 {
     STM32F446I2cState *s = STM32F446_I2C(obj);
-
     memory_region_init_io(&s->mmio, obj, &stm32f446_i2c_ops, s, TYPE_STM32F446_I2C, 0x400);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
 }
 
 static const VMStateDescription vmstate_stm32f446_i2c = {
-    .name = TYPE_STM32F446_I2C,
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
-        VMSTATE_UINT32(cr1, STM32F446I2cState),
-        VMSTATE_UINT32(cr2, STM32F446I2cState),
-        VMSTATE_END_OF_LIST()
-    }
+		.name = TYPE_STM32F446_I2C, .version_id = 1, .minimum_version_id = 1, .fields = (VMStateField[])
+		{
+			VMSTATE_UINT32(cr1, STM32F446I2cState),
+			VMSTATE_UINT32(cr2, STM32F446I2cState),
+			VMSTATE_END_OF_LIST()
+		}
+};
+
+static Property stm32f446_i2c_properties[] = {
+    DEFINE_PROP_STRING("name", STM32F446I2cState, name),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void stm32f446_i2c_class_init(ObjectClass *klass, void *data)
@@ -100,6 +177,7 @@ static void stm32f446_i2c_class_init(ObjectClass *klass, void *data)
 
     dc->reset = stm32f446_i2c_reset;
     dc->vmsd = &vmstate_stm32f446_i2c;
+    device_class_set_props(dc, stm32f446_i2c_properties);
 }
 
 static const TypeInfo stm32f446_i2c_info = {

@@ -37,6 +37,7 @@
 #include <hw/robonaut/stm32f446_rcc.h>
 #include <hw/robonaut/stm32f446_timer.h>
 #include <hw/robonaut/stm32f446_pwr.h>
+#include <hw/robonaut/stm32f446_i2c.h>
 
 #define TYPE_STM32F446RE_SOC "stm32f446re-soc"
 #define TYPE_STM32F446_SOC "stm32f446-soc"
@@ -83,6 +84,9 @@ struct STM32F446State {
     STM32F446FlashState flashInterface;
     STM32F446RccState rcc;
     STM32F446RccState pwr;
+    STM32F446I2cState i2c_1;
+    STM32F446I2cState i2c_2;
+    STM32F446I2cState i2c_3;
 
     MemoryRegion sram;
     MemoryRegion flash;

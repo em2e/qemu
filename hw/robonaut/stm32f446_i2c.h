@@ -43,8 +43,21 @@ struct STM32F446I2cState {
   /* <public> */
   MemoryRegion mmio;
 
+  char *name;
+  uint32_t clientAddr;
+  uint8_t buffer[256];
+  uint32_t index;
+
   uint32_t cr1;
   uint32_t cr2;
+  uint32_t oar1;
+  uint32_t oar2;
+  uint32_t dr;
+  uint32_t sr1;
+  uint32_t sr2;
+  uint32_t ccr;
+  uint32_t trise;
+  uint32_t fltr;
 };
 
 #endif /* HW_STM32F446_I2C_H */

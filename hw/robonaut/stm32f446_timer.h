@@ -84,7 +84,8 @@ struct STM32F446TimerState {
     Clock *clk;
     qemu_irq irq;
 
-    uint32_t timerId;
+    //uint32_t timerId;
+    char *name;
     uint32_t timerType;
     uint64_t ticks;
     uint64_t startTimeNs;
