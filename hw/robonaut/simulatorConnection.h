@@ -26,11 +26,11 @@ typedef struct
 
 typedef struct
 {
-  uint64_t virtualTime;
-  double motorPwm; //motor power ration -1 - 1 (expected values -0.3 - 0.3)
-  uint32_t fwdSteeringWheelPwm;
-  uint32_t revSteeringWheelPwm;
-  uint32_t distanceRotationPwm;
+	int64_t virtualTime;
+  double motorPower; //motor power ration -1 - 1 (expected values -0.3 - 0.3)
+  double fwdSteeringWheelAngle; //degree -32,5 - +32,5
+  double revSteeringWheelAngle; //degree -32,5 - +32,5
+  double distanceRotationAngle; //degree -32,5 - +32,5
 } SimulatoConnectionOutputMessage;
 
 typedef struct
@@ -46,5 +46,6 @@ typedef struct
 } SimulatorConnectionState;
 
 bool simulatorConnection_init (SimulatorConnectionState *sc);
+void simulatorConnection_signalOutThread (SimulatorConnectionState *sc);
 
 #endif //SIMULATOR_CONNECTION_H

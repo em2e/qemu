@@ -1,5 +1,5 @@
 /*
- * STM32F446 I2C
+ * STM32F446 GPIO
  *
  * Copyright (c) 2023 Zoltan Mihaly <zoltanmihaly@gmail.com>
  *
@@ -22,46 +22,42 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_STM32F446_I2C_H
-#define HW_STM32F446_I2C_H
+#ifndef HW_STM32F446_GPIO_H
+#define HW_STM32F446_GPIO_H
 
 #include "hw/sysbus.h"
-#include "hw/irq.h"
 #include "qom/object.h"
 
-#define TYPE_STM32F446_I2C "stm32f446-i2c"
-OBJECT_DECLARE_SIMPLE_TYPE(STM32F446I2cState, STM32F446_I2C)
+#define TYPE_STM32F446_GPIO "stm32f446-gpio"
+OBJECT_DECLARE_SIMPLE_TYPE(STM32F446GpioState, STM32F446_GPIO)
 
 struct STM32F446State;
-typedef void (*I2cCallback) (STM32F446I2cState *i2c);
 
-struct STM32F446I2cState {
+typedef void (*GpioCallback) (STM32F446GpioState *gpio);
+
+struct STM32F446GpioState {
   /* <private> */
   SysBusDevice parent_obj;
 
   /* <public> */
   MemoryRegion mmio;
-  qemu_irq irq;
 
   struct STM32F446State *soc;
-  I2cCallback callback;
+  GpioCallback callback;
 
   char *name;
-  uint32_t clientAddr;
-  uint8_t buffer[256];
-  uint32_t index;
 
-  uint32_t cr1;
-  uint32_t cr2;
-  uint32_t oar1;
-  uint32_t oar2;
-  uint32_t dr;
-  uint32_t sr1;
-  uint32_t sr2;
-  uint32_t ccr;
-  uint32_t trise;
-  uint32_t fltr;
-};
+  uint32_t moder;
+  uint32_t otyper;
+  uint32_t ospeeder;
+  uint32_t puprd;
+	uint32_t idr;
+  uint32_t odr;
+  uint32_t bsrr;
+  uint32_t lckr;
+  uint32_t afrl;
+  uint32_t afrh;
+  };
 
-#endif /* HW_STM32F446_I2C_H */
+#endif /* HW_STM32F446_GPIO_H */
 

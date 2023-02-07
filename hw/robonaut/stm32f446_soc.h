@@ -38,6 +38,7 @@
 #include <hw/robonaut/stm32f446_timer.h>
 #include <hw/robonaut/stm32f446_pwr.h>
 #include <hw/robonaut/stm32f446_i2c.h>
+#include <hw/robonaut/stm32f446_gpio.h>
 
 #define TYPE_STM32F446RE_SOC "stm32f446re-soc"
 #define TYPE_STM32F446_SOC "stm32f446-soc"
@@ -87,6 +88,15 @@ struct STM32F446State {
     STM32F446I2cState i2c_1;
     STM32F446I2cState i2c_2;
     STM32F446I2cState i2c_3;
+
+    STM32F446GpioState gpioA;
+    STM32F446GpioState gpioB;
+    STM32F446GpioState gpioC;
+    STM32F446GpioState gpioD;
+    STM32F446GpioState gpioE;
+    STM32F446GpioState gpioF;
+    STM32F446GpioState gpioG;
+    STM32F446GpioState gpioH;
 
     MemoryRegion sram;
     MemoryRegion flash;

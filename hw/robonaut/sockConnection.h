@@ -17,6 +17,7 @@ typedef struct
 } SockConnectionState;
 
 bool sockConnectionOpen (SockConnectionState *status, const char *socketPath);
+bool sockConnectionAccept (SockConnectionState *status);
 void sockConnectionClose (SockConnectionState *status);
 bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t size);
 bool sockConnectionSend (SockConnectionState *status, void * buffer, u_int32_t size);

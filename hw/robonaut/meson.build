@@ -7,6 +7,7 @@ robonaut_ss.add(when: 'CONFIG_ROBONAUT', if_true: files(
 'stm32f446_util.c',
 'stm32f446_pwr.c',
 'stm32f446_i2c.c',
+'stm32f446_gpio.c',
 'simulatorConnection.c',
 'simulatorConnection.h',
 'sockConnection.c',

@@ -122,12 +122,22 @@ void sockConnectionClose (SockConnectionState *status)
   }
 }
 
-bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t size)
+bool sockConnectionAccept (SockConnectionState *status)
 {
   if (!status->isConnected && !sockConnection_accept(status))
   {
     status->lastError = errno;
-    printf ("recv failed: %s\n", strerror (status->lastError));
+    printf ("accept failed: %s\n", strerror (status->lastError));
+    return false;
+  }
+  return true;
+}
+
+bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t size)
+{
+  if (!status->isConnected)
+  {
+    printf ("receive failed: not connection\n");
     return false;
   }
 
@@ -145,6 +155,12 @@ bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t s
 
 bool sockConnectionSend (SockConnectionState *status, void * buffer, u_int32_t size)
 {
+  if (!status->isConnected)
+  {
+    printf ("send failed: not connection\n");
+    return false;
+  }
+
   if (send (status->peerFd, buffer, size, MSG_EOR) < 0)
   {
     status->lastError = errno;

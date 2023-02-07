@@ -48,10 +48,29 @@ bool simulatorConnection_init (SimulatorConnectionState *sc)
     return false;
   }
 
+  if (sc->sockConnection.isServer && !sc->sockConnection.isConnected && !sockConnectionAccept (&sc->sockConnection))
+  {
+  	return false;
+  }
+
+  if (!sockConnectionRecv (&sc->sockConnection, &sc->inpMsg, sizeof(SimulatoConnectionInputMessage) ))
+  {
+  	return false;
+  }
+
+  printf ("simulator connection initialized\n");
+
   qemu_mutex_init (&sc->outThreadMutex);
   qemu_cond_init (&sc->outThreadCond);
   qemu_thread_create (&sc->inpThread, "simulatorConnectionInp", simulatorConnection_inpThread, sc, QEMU_THREAD_JOINABLE);
   qemu_thread_create (&sc->outThread, "simulatorConnectionOut", simulatorConnection_outThread, sc, QEMU_THREAD_JOINABLE);
 
   return true;
+}
+
+void simulatorConnection_signalOutThread (SimulatorConnectionState *sc)
+{
+	qemu_mutex_lock(&sc->outThreadMutex);
+	qemu_cond_signal(&sc->outThreadCond);
+	qemu_mutex_unlock(&sc->outThreadMutex);
 }

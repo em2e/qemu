@@ -25,9 +25,9 @@
 #include <stdbool.h>
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "hw/irq.h"
 #include "trace.h"
 #include "migration/vmstate.h"
-#include "qemu/timer.h"
 #include "hw/qdev-properties.h"
 #include <hw/robonaut/stm32f446_util.h>
 #include <hw/robonaut/stm32f446_i2c.h>
@@ -40,9 +40,13 @@
 
 #define CR1_START (1u << 8)
 #define CR1_STOP (1u << 9)
+#define CR1_SWRST (1u << 15)
+#define CR2_ITBUFEN (1u << 10)
+#define CR2_ITEVTEN (1u << 9)
 #define SR1_SB 1u
 #define SR1_ADDR 2u
 #define SR1_TXE (1u << 7)
+#define SR1_BTF (1u << 2)
 #define SR2_MSL 1u
 #define SR2_BUSY 2u
 
@@ -55,6 +59,9 @@ static void cr1StartWriteHandler(void *device, uint32_t *ch, uint32_t *value)
   	s->sr1 |= SR1_SB; //Start condition generated
   	s->sr2 |= (SR2_MSL | SR2_BUSY); //master mode & busy
   	s->index = 0;
+  	if (s->cr2 & CR2_ITEVTEN) {
+  		qemu_irq_pulse (s->irq);
+  	}
   }
 }
 
@@ -62,9 +69,11 @@ static void cr1StopWriteHandler(void *device, uint32_t *ch, uint32_t *value)
 {
   STM32F446I2cState *s = device;
   if (*value & CR1_STOP) {
-  	//TODO data sending ready, call external handler routine
+  	if (s->callback != NULL) {
+  		s->callback(s);
+  	}
   	s->sr2 &= ~(SR2_MSL | SR2_BUSY); //master mode & busy
-  	s->sr1 &= ~(SR1_ADDR | SR1_TXE);
+  	s->sr1 &= ~(SR1_ADDR | SR1_TXE | SR1_BTF);
 
   }
 }
@@ -77,16 +86,33 @@ static void drWriteHandler(void *device, uint32_t *ch, uint32_t *value)
     s->sr1 |= (SR1_ADDR | SR1_TXE);
     s->cr1 &= ~(CR1_START);
     s->clientAddr = *value;
+  	if (s->cr2 & CR2_ITEVTEN) {
+  		qemu_irq_pulse (s->irq);
+  	}
   } else {
   	if (s->index > arraySize(s->buffer)) {
   		//overflow!!!!
   	}	else {
-			s->index++;
 			s->buffer[s->index] = (uint8_t) *value;
+			s->index++;
+  	}
+    s->sr1 |= (SR1_TXE | SR1_BTF);
+  	if (s->cr2 & CR2_ITEVTEN) {
+  		qemu_irq_pulse (s->irq);
   	}
   }
   s->dr = *value;
   *ch = 0;
+}
+
+static void cr1SwrstWriteHandler(void *device, uint32_t *ch, uint32_t *value)
+{
+  STM32F446I2cState *s = device;
+  if (*value & CR1_SWRST) {
+  	//reset
+  	s->sr2 &= ~(SR2_MSL | SR2_BUSY);
+  	s->sr1 &= ~(SR1_ADDR | SR1_TXE | SR1_BTF);
+  }
 }
 
 static const RegisterBitInfo cr1BitInfo[] = {
@@ -103,7 +129,7 @@ static const RegisterBitInfo cr1BitInfo[] = {
 		{.name = "POS", .bb = 11, .mask = 1u, .log = true},
 		{.name = "PEC", .bb = 12, .mask = 1u, .log = true},
 		{.name = "ALERT", .bb = 13, .mask = 1u, .log = true},
-		{.name = "SWRST", .bb = 15, .mask = 1u, .log = true},
+		{.name = "SWRST", .bb = 15, .mask = 1u, .log = true, .wrHandler = cr1SwrstWriteHandler},
 };
 
 static const RegisterInfo regInfo[] = {
@@ -155,6 +181,7 @@ static void stm32f446_i2c_init(Object *obj)
     STM32F446I2cState *s = STM32F446_I2C(obj);
     memory_region_init_io(&s->mmio, obj, &stm32f446_i2c_ops, s, TYPE_STM32F446_I2C, 0x400);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
+  	sysbus_init_irq (SYS_BUS_DEVICE (obj), &s->irq);
 }
 
 static const VMStateDescription vmstate_stm32f446_i2c = {
@@ -162,6 +189,14 @@ static const VMStateDescription vmstate_stm32f446_i2c = {
 		{
 			VMSTATE_UINT32(cr1, STM32F446I2cState),
 			VMSTATE_UINT32(cr2, STM32F446I2cState),
+			VMSTATE_UINT32(oar1, STM32F446I2cState),
+			VMSTATE_UINT32(oar2, STM32F446I2cState),
+			VMSTATE_UINT32(dr, STM32F446I2cState),
+			VMSTATE_UINT32(sr1, STM32F446I2cState),
+			VMSTATE_UINT32(sr2, STM32F446I2cState),
+			VMSTATE_UINT32(ccr, STM32F446I2cState),
+			VMSTATE_UINT32(trise, STM32F446I2cState),
+			VMSTATE_UINT32(fltr, STM32F446I2cState),
 			VMSTATE_END_OF_LIST()
 		}
 };

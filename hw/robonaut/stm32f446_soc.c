@@ -90,6 +90,23 @@ static void init (Object *obj)
 
   object_initialize_child(obj, "exti", &s->exti, TYPE_STM32F4XX_EXTI);
 
+  object_initialize_child(obj, "gpioA", &s->gpioA, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioA), "name", "GPIOA");
+  object_initialize_child(obj, "gpioB", &s->gpioB, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioB), "name", "GPIOB");
+  object_initialize_child(obj, "gpioC", &s->gpioC, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioC), "name", "GPIOC");
+  object_initialize_child(obj, "gpioD", &s->gpioD, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioD), "name", "GPIOD");
+  object_initialize_child(obj, "gpioE", &s->gpioE, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioE), "name", "GPIOE");
+  object_initialize_child(obj, "gpioF", &s->gpioF, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioF), "name", "GPIOF");
+  object_initialize_child(obj, "gpioG", &s->gpioG, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioG), "name", "GPIOG");
+  object_initialize_child(obj, "gpioH", &s->gpioH, TYPE_STM32F446_GPIO);
+  qdev_prop_set_string(DEVICE(&s->gpioH), "name", "GPIOH");
+
   s->sysclk = qdev_init_clock_in (DEVICE (s), "sysclk", NULL, NULL, 0);
   s->refclk = qdev_init_clock_in (DEVICE (s), "refclk", NULL, NULL, 0);
 
@@ -307,16 +324,23 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
   {
     return;
   }
+  s->i2c_1.soc = s;
+  sysbus_connect_irq(SYS_BUS_DEVICE (DEVICE (&s->i2c_1)), 0, qdev_get_gpio_in(armv7m, 31));
+
   if (!realizeMmapSysBusDevice (errp, DEVICE (&s->i2c_2), 0x40005800))
   {
     return;
   }
+  s->i2c_2.soc = s;
+  sysbus_connect_irq(SYS_BUS_DEVICE (DEVICE (&s->i2c_2)), 0, qdev_get_gpio_in(armv7m, 33));
+
   if (!realizeMmapSysBusDevice (errp, DEVICE (&s->i2c_3), 0x40005C00))
   {
     return;
   }
-  //create_unimplemented_device("I2S2",     0x40003800, 0x400);
-  //create_unimplemented_device("I2S3",     0x40003C00, 0x400);
+  s->i2c_3.soc = s;
+  sysbus_connect_irq(SYS_BUS_DEVICE (DEVICE (&s->i2c_3)), 0, qdev_get_gpio_in(armv7m, 72));
+
   create_unimplemented_device ("SPDIFRX", 0x40004000, 0x400);
 
   create_unimplemented_device ("CAN1", 0x40006400, 0x400);
@@ -327,14 +351,40 @@ static void realizeFn (DeviceState *dev_soc, Error **errp)
   create_unimplemented_device ("SAI1", 0x40015800, 0x400);
   create_unimplemented_device ("SAI2", 0x40015C00, 0x400);
 
-  create_unimplemented_device ("GPIOA", 0x40020000, 0x400);
-  create_unimplemented_device ("GPIOB", 0x40020400, 0x400);
-  create_unimplemented_device ("GPIOC", 0x40020800, 0x400);
-  create_unimplemented_device ("GPIOD", 0x40020C00, 0x400);
-  create_unimplemented_device ("GPIOE", 0x40021000, 0x400);
-  create_unimplemented_device ("GPIOF", 0x40021400, 0x400);
-  create_unimplemented_device ("GPIOG", 0x40021800, 0x400);
-  create_unimplemented_device ("GPIOH", 0x40021C00, 0x400);
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioA), 0x40020000))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioB), 0x40020400))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioC), 0x40020800))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioD), 0x40020C00))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioE), 0x40021000))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioF), 0x40021400))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioG), 0x40021800))
+  {
+    return;
+  }
+  if (!realizeMmapSysBusDevice (errp, DEVICE (&s->gpioH), 0x40021C00))
+  {
+    return;
+  }
+
+
   create_unimplemented_device ("CRC", 0x40023000, 0x400);
   create_unimplemented_device ("BKPSRAM", 0x40024000, 0x400);
   create_unimplemented_device ("DMA1", 0x40026000, 0x400);
