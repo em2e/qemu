@@ -29,6 +29,7 @@
 #include "hw/qdev-clock.h"
 #include "qemu/error-report.h"
 #include "hw/arm/boot.h"
+#include "sysemu/runstate.h"
 #include <hw/robonaut/stm32f446_soc.h>
 
 #include <hw/robonaut/simulatorConnection.h>
@@ -61,10 +62,10 @@ static double pwmToAngle(uint32_t pwm, uint32_t low, uint32_t mid, uint32_t high
 static void robonaut_I2c2Callback(STM32F446I2cState *i2c) {
 	STM32F446State *soc = i2c->soc;
 	simulatorConnection.outMsg.virtualTime = qemu_clock_get_ns (QEMU_CLOCK_VIRTUAL);
-	i2c->buffer[i2c->index] = 0;
-	simulatorConnection.outMsg.motorPower = atof((const char *)i2c->buffer);
-	i2c->buffer[0] = 0;
-	i2c->index = 0;
+	i2c->outBuffer[i2c->outIndex] = 0;
+	simulatorConnection.outMsg.motorPower = atof((const char *)i2c->outBuffer);
+	i2c->outBuffer[0] = 0;
+	i2c->outIndex = 0;
 
 	simulatorConnection.outMsg.fwdSteeringWheelAngle = pwmToAngle(soc->timer[2].tim_ccr1, SERVO_FRONT_LOW, SERVO_FRONT_MID, SERVO_FRONT_HIGH);
 	simulatorConnection.outMsg.revSteeringWheelAngle = pwmToAngle(soc->timer[3].tim_ccr1, SERVO_BACK_LOW, SERVO_BACK_MID, SERVO_BACK_HIGH);
@@ -72,6 +73,58 @@ static void robonaut_I2c2Callback(STM32F446I2cState *i2c) {
 
 	simulatorConnection_signalOutThread(&simulatorConnection);
 
+}
+
+#define MSG_STATE_SHUTDOWN 0u
+#define MSG_STATE_RUNNING 1u
+#define MSG_STATE_WAITING 2u
+
+static void robonaut_I2cInputCallback(void *opaque,size_t size,  SimulatoConnectionInputMessage *msg)
+{
+	STM32F446State *soc = opaque;
+	if (size < 1) {
+		//NULL msg?
+		return;
+	}
+
+	if (msg->state == MSG_STATE_SHUTDOWN)
+	{
+		qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+	}
+	else if (msg->state == MSG_STATE_WAITING)
+	{
+		//do nothing
+	}
+	else if (msg->state == MSG_STATE_RUNNING && size >= sizeof(SimulatoConnectionInputMessage))
+	{
+		sprintf((char *) soc->i2c_2.inpBuffer, "%c,%c,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
+				msg->morelines ? '1' : '0',
+				msg->oneline ? '1' : '0',
+				msg->pFront1, msg->pFront2, msg->pFront3, msg->pFront4,
+				msg->pMid1, msg->pMid2, msg->pMid3, msg->pMid4);
+
+		printf("Input buffer: \"%s\"\n", soc->i2c_2.inpBuffer);
+		soc->i2c_2.inputReady(&soc->i2c_2, 90);
+
+		int64_t currentCnt = (int64_t) soc->timer[1].tim_cnt;
+		if (msg->encoder >= 0) {
+			currentCnt += msg->encoder;
+			if (soc->timer[1].tim_arr) {
+				while(currentCnt > soc->timer[1].tim_arr) {
+					currentCnt -= soc->timer[1].tim_arr;
+				}
+			}
+		} else {
+			currentCnt += msg->encoder;
+			if (soc->timer[1].tim_arr) {
+				while(currentCnt < 0) {
+					currentCnt += soc->timer[1].tim_arr;
+				}
+			}
+		}
+		soc->timer[1].tim_cnt = currentCnt & 0xffffffff;
+		printf("Speed: msg.encoder=%ld, currentCnt=%ld, tim_cnt=%u\n", msg->encoder, currentCnt, soc->timer[1].tim_cnt);
+	}
 }
 
 static void robonaut_init (MachineState *machine)
@@ -95,7 +148,10 @@ static void robonaut_init (MachineState *machine)
 
   armv7m_load_kernel (ARM_CPU (first_cpu), machine->kernel_filename, 0, FLASH_SIZE_E);
 
-  STM32F446_SOC(dev)->i2c_2.callback = robonaut_I2c2Callback;
+  simulatorConnection.inpCallbackParam = dev;
+  STM32F446State *soc = STM32F446_SOC(dev);
+  soc->i2c_2.callback = robonaut_I2c2Callback;
+  simulatorConnection.inpCallback = robonaut_I2cInputCallback;
 }
 
 static void robonaut_machine_init (MachineClass *mc)

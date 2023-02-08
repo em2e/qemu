@@ -34,6 +34,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(STM32F446I2cState, STM32F446_I2C)
 
 struct STM32F446State;
 typedef void (*I2cCallback) (STM32F446I2cState *i2c);
+typedef void (*I2cInputReady)(STM32F446I2cState *i2c, size_t size);
+
+
+enum STM32F446I2cMode {STM32F446I2cMODE_MASTERTRANSMIT = 2, STM32F446I2cMODE_MASTERRECEIVE = 3, STM32F446I2cMODE_SLAVERANSMIT = 4, STM32F446I2cMODE_SLAVERECEIVE = 5};
 
 struct STM32F446I2cState {
   /* <private> */
@@ -45,11 +49,17 @@ struct STM32F446I2cState {
 
   struct STM32F446State *soc;
   I2cCallback callback;
+  I2cInputReady inputReady;
 
   char *name;
+  enum STM32F446I2cMode mode;
   uint32_t clientAddr;
-  uint8_t buffer[256];
-  uint32_t index;
+  uint8_t inpBuffer[256];
+  uint32_t inpSize;
+  uint32_t inpIndex;
+  uint8_t outBuffer[256];
+  uint32_t outIndex;
+  bool sr1Read;
 
   uint32_t cr1;
   uint32_t cr2;

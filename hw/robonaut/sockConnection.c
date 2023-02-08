@@ -133,7 +133,7 @@ bool sockConnectionAccept (SockConnectionState *status)
   return true;
 }
 
-bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t size)
+int sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t size)
 {
   if (!status->isConnected)
   {
@@ -141,15 +141,16 @@ bool sockConnectionRecv (SockConnectionState *status, void * buffer, u_int32_t s
     return false;
   }
 
-  if (recv (status->peerFd, buffer, size, 0) < 0)
+  int recvdBytes = recv (status->peerFd, buffer, size, 0);
+  if (recvdBytes < 0)
   {
     status->lastError = errno;
     printf ("recv failed: %s\n", strerror (status->lastError));
-    return false;
+    return recvdBytes;
   }
 
   status->lastError = 0;
-  return true;
+  return recvdBytes;
 
 }
 

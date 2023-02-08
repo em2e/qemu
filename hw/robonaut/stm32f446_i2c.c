@@ -46,9 +46,11 @@
 #define SR1_SB 1u
 #define SR1_ADDR 2u
 #define SR1_TXE (1u << 7)
+#define SR1_RXNE (1u << 6)
 #define SR1_BTF (1u << 2)
 #define SR2_MSL 1u
 #define SR2_BUSY 2u
+#define SR2_TRA 4u
 
 
 static void cr1StartWriteHandler(void *device, uint32_t *ch, uint32_t *value)
@@ -58,7 +60,9 @@ static void cr1StartWriteHandler(void *device, uint32_t *ch, uint32_t *value)
   	s->sr1 &= ~(SR1_ADDR | SR1_TXE);
   	s->sr1 |= SR1_SB; //Start condition generated
   	s->sr2 |= (SR2_MSL | SR2_BUSY); //master mode & busy
-  	s->index = 0;
+  	s->outIndex = 0;
+  	s->inpIndex = 0;
+  	s->mode = 0;
   	if (s->cr2 & CR2_ITEVTEN) {
   		qemu_irq_pulse (s->irq);
   	}
@@ -72,29 +76,62 @@ static void cr1StopWriteHandler(void *device, uint32_t *ch, uint32_t *value)
   	if (s->callback != NULL) {
   		s->callback(s);
   	}
-  	s->sr2 &= ~(SR2_MSL | SR2_BUSY); //master mode & busy
+  	s->sr2 &= ~(SR2_MSL | SR2_BUSY | SR2_TRA); //master mode & busy
   	s->sr1 &= ~(SR1_ADDR | SR1_TXE | SR1_BTF);
-
+  	s->mode = 0;
   }
+}
+
+static uint64_t drReadHandler(void *device)
+{
+  STM32F446I2cState *s = device;
+  uint32_t dr = s->dr;
+  if ((s->inpSize > s->inpIndex) && (s->mode == STM32F446I2cMODE_MASTERRECEIVE) && (s->cr2 & CR2_ITEVTEN)) {
+		s->dr = s->inpBuffer[s->inpIndex];
+		s->inpIndex++;
+		s->sr1 |= (SR1_RXNE | SR1_BTF);
+		qemu_irq_pulse (s->irq);
+	}
+  return dr;
 }
 
 static void drWriteHandler(void *device, uint32_t *ch, uint32_t *value)
 {
   STM32F446I2cState *s = device;
   if (s->cr1 & CR1_START) {
-    s->sr1 &= ~SR1_SB; //Start condition cleared
-    s->sr1 |= (SR1_ADDR | SR1_TXE);
-    s->cr1 &= ~(CR1_START);
-    s->clientAddr = *value;
+  	if (*value & 1u)
+  	{
+  		//receive
+  		s->mode = STM32F446I2cMODE_MASTERRECEIVE;
+
+  		s->sr1 &= ~SR1_SB; //Start condition cleared
+      s->sr1 |= SR1_ADDR;
+      s->sr2 &= ~SR2_TRA;
+      s->cr1 &= ~CR1_START;
+      s->clientAddr = *value;
+
+  	}
+  	else
+  	{
+  		//transmit
+  		s->mode = STM32F446I2cMODE_MASTERTRANSMIT;
+
+  		s->sr1 &= ~SR1_SB; //Start condition cleared
+      s->sr1 |= (SR1_ADDR | SR1_TXE);
+      s->sr2 |= SR2_TRA;
+      s->cr1 &= ~(CR1_START);
+      s->clientAddr = *value;
+
+  	}
   	if (s->cr2 & CR2_ITEVTEN) {
   		qemu_irq_pulse (s->irq);
   	}
   } else {
-  	if (s->index > arraySize(s->buffer)) {
+  	if (s->outIndex > arraySize(s->outBuffer)) {
   		//overflow!!!!
   	}	else {
-			s->buffer[s->index] = (uint8_t) *value;
-			s->index++;
+			s->outBuffer[s->outIndex] = (uint8_t) *value;
+			s->outIndex++;
   	}
     s->sr1 |= (SR1_TXE | SR1_BTF);
   	if (s->cr2 & CR2_ITEVTEN) {
@@ -103,6 +140,7 @@ static void drWriteHandler(void *device, uint32_t *ch, uint32_t *value)
   }
   s->dr = *value;
   *ch = 0;
+  s->sr1Read = false;
 }
 
 static void cr1SwrstWriteHandler(void *device, uint32_t *ch, uint32_t *value)
@@ -110,9 +148,55 @@ static void cr1SwrstWriteHandler(void *device, uint32_t *ch, uint32_t *value)
   STM32F446I2cState *s = device;
   if (*value & CR1_SWRST) {
   	//reset
-  	s->sr2 &= ~(SR2_MSL | SR2_BUSY);
+  	s->sr2 &= ~(SR2_MSL | SR2_BUSY | SR2_TRA);
   	s->sr1 &= ~(SR1_ADDR | SR1_TXE | SR1_BTF);
+  	s->mode = 0;
   }
+}
+
+static uint64_t sr1ReadHandler(void *device) {
+  STM32F446I2cState *s = device;
+  s->sr1Read = true;
+  return s->sr1;
+}
+
+static void inputReady(STM32F446I2cState *s, size_t size) {
+	s->inpSize = size;
+	s->inpIndex = 0;
+	if ((s->mode == STM32F446I2cMODE_MASTERRECEIVE) && (s->cr2 & CR2_ITEVTEN)
+			&& ((s->sr1 & SR1_ADDR) == 0)) {
+
+		printf("indulna a mandula1\n");
+
+		s->dr = s->inpBuffer[s->inpIndex];
+		s->inpIndex++;
+		s->sr1 |= (SR1_RXNE | SR1_BTF);
+		qemu_irq_pulse (s->irq); //innen jön a hiba
+
+	}
+}
+
+static uint64_t sr2ReadHandler(void *device) {
+  STM32F446I2cState *s = device;
+  if (s->sr1Read) {
+  	s->sr1 &= ~(SR1_ADDR);
+  	if ((s->mode == STM32F446I2cMODE_MASTERTRANSMIT) && (s->cr2 & CR2_ITEVTEN))
+  	{
+  		s->sr1 |= SR1_TXE;
+  		qemu_irq_pulse (s->irq);
+  	}
+  	else if (((s->sr1 & SR1_RXNE) == 0) && (s->inpSize > s->inpIndex) && (s->mode == STM32F446I2cMODE_MASTERRECEIVE) && (s->cr2 & CR2_ITEVTEN))
+  	{
+  		printf("indul a mandula2\n");
+
+  		s->dr = s->inpBuffer[s->inpIndex];
+  		s->inpIndex++;
+  		s->sr1 |= (SR1_RXNE | SR1_BTF);
+  		qemu_irq_pulse (s->irq);
+  	}
+  }
+  s->sr1Read = false;
+  return s->sr2;
 }
 
 static const RegisterBitInfo cr1BitInfo[] = {
@@ -137,9 +221,9 @@ static const RegisterInfo regInfo[] = {
 	{.name = "CR2",	  .hwaddr = 0x04, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, cr2), .log = true},
 	{.name = "OAR1",	.hwaddr = 0x08, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, oar1), .log = true},
 	{.name = "OAR2",	.hwaddr = 0x0c, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, oar2), .log = true},
-	{.name = "DR",    .hwaddr = 0x10, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, dr), .log = true, .wrHandler = drWriteHandler},
-	{.name = "SR1",   .hwaddr = 0x14, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr1), .log = true},
-	{.name = "SR2",   .hwaddr = 0x18, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr2), .log = true, .readOnly = true},
+	{.name = "DR",    .hwaddr = 0x10, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, dr), .log = true, .wrHandler = drWriteHandler, .rdHandler = drReadHandler},
+	{.name = "SR1",   .hwaddr = 0x14, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr1), .log = true, .rdHandler = sr1ReadHandler},
+	{.name = "SR2",   .hwaddr = 0x18, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, sr2), .log = true, .rdHandler = sr2ReadHandler, .readOnly = true},
 	{.name = "CCR",   .hwaddr = 0x1c, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, ccr), .log = true},
 	{.name = "TRISE", .hwaddr = 0x20, .initValue = 0x2, .regOffs = offsetof(STM32F446I2cState, trise), .log = true},
 	{.name = "FLTR",  .hwaddr = 0x24, .initValue = 0x0, .regOffs = offsetof(STM32F446I2cState, fltr), .log = true}
@@ -182,6 +266,7 @@ static void stm32f446_i2c_init(Object *obj)
     memory_region_init_io(&s->mmio, obj, &stm32f446_i2c_ops, s, TYPE_STM32F446_I2C, 0x400);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
   	sysbus_init_irq (SYS_BUS_DEVICE (obj), &s->irq);
+  	s->inputReady = inputReady;
 }
 
 static const VMStateDescription vmstate_stm32f446_i2c = {

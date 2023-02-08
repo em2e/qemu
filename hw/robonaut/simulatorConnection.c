@@ -8,9 +8,13 @@ static void *simulatorConnection_inpThread (void *opaque)
   SimulatorConnectionState *sc = opaque;
   while(!sc->stopping)
   {
-    if (sockConnectionRecv (&sc->sockConnection, &sc->inpMsg, sizeof(SimulatoConnectionInputMessage) ))
+    int size = sockConnectionRecv (&sc->sockConnection, &sc->inpMsg, sizeof(SimulatoConnectionInputMessage));
+    if (size >= 0)
     {
-      //TODO process input message
+    	if (sc->inpCallback != NULL)
+    	{
+    		sc->inpCallback(sc->inpCallbackParam, size, &sc->inpMsg);
+    	}
     }
     else
     {
@@ -42,6 +46,8 @@ static void *simulatorConnection_outThread (void *opaque)
 bool simulatorConnection_init (SimulatorConnectionState *sc)
 {
   sc->stopping = false;
+  sc->inpCallback = NULL;
+  sc->inpCallbackParam = NULL;
 
   if (!sockConnectionOpen (&sc->sockConnection, socketPath)) {
     //socket open error, close emulator
@@ -53,7 +59,7 @@ bool simulatorConnection_init (SimulatorConnectionState *sc)
   	return false;
   }
 
-  if (!sockConnectionRecv (&sc->sockConnection, &sc->inpMsg, sizeof(SimulatoConnectionInputMessage) ))
+  if (sockConnectionRecv (&sc->sockConnection, &sc->inpMsg, sizeof(SimulatoConnectionInputMessage) < 0 ))
   {
   	return false;
   }
